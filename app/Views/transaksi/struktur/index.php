@@ -10,7 +10,6 @@
 
 <?php if (session()->get('user_role') === 'admin'): ?>
 <div class="grid-2">
-    <!-- Form Plotting -->
     <div class="glass-panel">
         <h3 style="margin-bottom: 20px;"><i class="fa-solid fa-user-plus"></i> Plot Anggota ke Struktur</h3>
         <form id="plotForm">
@@ -49,8 +48,6 @@
         </form>
     </div>
 
-<?php if (session()->get('user_role') === 'admin'): ?>
-    <!-- Data Table in 2-col grid only for admin (has plot form) -->
     <div class="glass-panel" style="grid-column: span 1;">
         <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px; border-bottom: 1px solid var(--border-light); padding-bottom: 15px;">
             <img src="<?= base_url('assets/images/logo.png') ?>" alt="Logo HIMAPROSIF" style="width: 50px; height: 50px; object-fit: contain;">
@@ -65,8 +62,6 @@
                 <?= session()->getFlashdata('message') ?>
             </div>
         <?php endif; ?>
-
-
 
         <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
             <table id="strukturTable">
@@ -85,12 +80,10 @@
                             <td><span class="badge" style="background: #eff6ff; color: #1d4ed8; border: 1px solid rgba(29, 78, 216, 0.1); padding: 4px 8px; border-radius: 6px; font-weight: 600;"><?= $s['NAMA_DEPARTEMEN'] ?></span></td>
                             <td><?= $s['NAMA_JABATAN'] ?></td>
                             <td>
-                                <?php if (session()->get('user_role') === 'admin'): ?>
                                 <div style="display: flex; gap: 6px;">
                                     <button type="button" class="btn btn-sm btn-primary" onclick="openEditModal(<?= htmlspecialchars(json_encode($s)) ?>)" title="Ubah"><i class="fa-solid fa-pen-to-square"></i></button>
                                     <a href="<?= base_url('transaksi/struktur/delete/' . $s['ID_STRUKTUR']) ?>" class="btn btn-sm btn-danger" onclick="return confirm('Apakah Anda yakin ingin menghapus data ini?');" title="Hapus"><i class="fa-solid fa-trash"></i></a>
                                 </div>
-                                <?php else: ?><span style="font-size:0.78rem;color:var(--text-light);">—</span><?php endif; ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -100,7 +93,6 @@
     </div>
 </div>
 <?php else: ?>
-<!-- User: show full-width table without plot form -->
 <div class="glass-panel">
     <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px; border-bottom: 1px solid var(--border-light); padding-bottom: 15px;">
         <img src="<?= base_url('assets/images/logo.png') ?>" alt="Logo HIMAPROSIF" style="width: 50px; height: 50px; object-fit: contain;">
@@ -126,7 +118,6 @@
 </div>
 <?php endif; ?>
 
-<!-- Edit Modal (Glassmorphism Pop-up style) -->
 <div id="editModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
     <div class="glass-panel" style="width: 90%; max-width: 500px; padding: 25px; border-radius: 16px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border-light); padding-bottom: 12px;">
@@ -217,7 +208,10 @@ document.addEventListener('DOMContentLoaded', function() {
                         <td><span class="badge" style="background: #eff6ff; color: #1d4ed8; border: 1px solid rgba(29, 78, 216, 0.1); padding: 4px 8px; border-radius: 6px; font-weight: 600;">${data.data.NAMA_DEPARTEMEN}</span></td>
                         <td>${data.data.NAMA_JABATAN}</td>
                         <td>
-                            <a href="<?= base_url('transaksi/struktur/delete/') ?>${data.data.ID_STRUKTUR}" class="btn btn-sm btn-danger" onclick="return confirm('Apakah Anda yakin ingin menghapus data ini?');" title="Hapus"><i class="fa-solid fa-trash"></i></a>
+                            <div style="display: flex; gap: 6px;">
+                                <button type="button" class="btn btn-sm btn-primary" onclick='openEditModal(${JSON.stringify(data.data)})' title="Ubah"><i class="fa-solid fa-pen-to-square"></i></button>
+                                <a href="<?= base_url('transaksi/struktur/delete/') ?>${data.data.ID_STRUKTUR}" class="btn btn-sm btn-danger" onclick="return confirm('Apakah Anda yakin ingin menghapus data ini?');" title="Hapus"><i class="fa-solid fa-trash"></i></a>
+                            </div>
                         </td>
                     `;
                     tbody.prepend(tr); // Add to top
@@ -257,7 +251,6 @@ window.onclick = function(event) {
         closeEditModal();
     }
 }
-
 
 </script>
 <?= $this->endSection() ?>

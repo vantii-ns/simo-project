@@ -4,9 +4,21 @@
 
 <?php
 $successMsg = session()->getFlashdata('success');
+
+// Ambil role langsung dari session karena Pengaturan.php belum mengirimkannya
+$userRole = session()->get('user_role');
+
+if ($userRole === 'admin') {
+    $roleLong  = 'ADMINISTRATOR';
+    $roleShort = 'Admin';
+    $roleForm  = 'Administrator';
+} else {
+    $roleLong  = 'USER';
+    $roleShort = 'User';
+    $roleForm  = 'User';
+}
 ?>
 
-<!-- Settings Page -->
 <div class="settings-page">
 
     <?php if ($successMsg): ?>
@@ -19,7 +31,6 @@ $successMsg = session()->getFlashdata('success');
 
     <div class="settings-layout">
 
-        <!-- LEFT: Profile Card -->
         <div class="settings-sidebar-panel">
             <div class="profile-card-settings">
                 <div class="profile-avatar-wrap" id="avatarWrap">
@@ -36,7 +47,7 @@ $successMsg = session()->getFlashdata('success');
                     </label>
                 </div>
                 <h3 class="profile-card-name" id="previewUsername"><?= esc($username) ?></h3>
-                <p class="profile-card-role">Administrator HIMAPROSIF</p>
+                <p class="profile-card-role"><?= $roleLong ?> HIMAPROSIF</p>
                 <p class="profile-card-bio" id="previewBio"><?= esc($bio) ?></p>
 
                 <div class="profile-card-stats">
@@ -46,14 +57,11 @@ $successMsg = session()->getFlashdata('success');
                     </div>
                     <div class="pcs-divider"></div>
                     <div class="pcs-item">
-                        <span class="pcs-value">Admin</span>
+                        <span class="pcs-value"><?= $roleShort ?></span>
                         <span class="pcs-label">Role</span>
                     </div>
                 </div>
-            </div>
-
-            <!-- Theme switcher card -->
-            <div class="theme-card">
+            </div> <div class="theme-card">
                 <div class="theme-card-header">
                     <i class="fa-solid fa-palette"></i>
                     <div>
@@ -88,10 +96,8 @@ $successMsg = session()->getFlashdata('success');
                     </div>
                 </div>
             </div>
-        </div>
-
-        <!-- RIGHT: Settings Form -->
-        <div class="settings-main-panel">
+        </div> <div class="settings-main-panel">
+            
 
             <!-- Tabs -->
             <div class="settings-tabs">
@@ -148,7 +154,7 @@ $successMsg = session()->getFlashdata('success');
                                 <label class="form-label">Role</label>
                                 <div class="input-icon-wrap">
                                     <i class="fa-solid fa-crown input-icon"></i>
-                                    <input type="text" class="form-control with-icon" value="Administrator" readonly style="cursor:not-allowed;background:#f9fafb;">
+                                    <input type="text" class="form-control with-icon" value="<?= $roleForm ?>" readonly style="cursor:not-allowed;background:#f9fafb;">
                                 </div>
                             </div>
                         </div>

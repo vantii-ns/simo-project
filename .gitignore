@@ -124,3 +124,8 @@ _modules/*
 
 /results/
 /phpunit*.xml
+
+public/uploads/profiles/*
+public/uploads/documents/*
+!public/uploads/profiles/default.png
+!public/uploads/profiles/default.jpg

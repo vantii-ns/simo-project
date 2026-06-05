@@ -9,7 +9,8 @@ class UserModel extends Model
     protected $table      = 'users';
     protected $primaryKey = 'id';
 
-    protected $allowedFields = ['username', 'password', 'role'];
+    // Tambahkan 'bio', 'avatar', dan 'theme' ke dalam array ini
+    protected $allowedFields = ['username', 'password', 'role', 'bio', 'avatar', 'theme'];
 
     protected $useTimestamps = true;
     protected $createdField  = 'created_at';

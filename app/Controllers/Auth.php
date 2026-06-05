@@ -41,18 +41,20 @@ class Auth extends BaseController
             return redirect()->back()->with('error', 'Username atau password salah.')->withInput();
         }
 
-        // Set session
+        // Set session lengkap dengan logika modern (Null Coalescing & Shorthand Ternary)
         session()->set([
-            'logged_in'   => true,
-            'user_id'     => $user['id'],
-            'user_role'   => $user['role'],
-            'username'    => $user['username'],
+            'logged_in'        => true,
+            'user_id'          => $user['id'],
+            'id'               => $user['id'], 
+            'user_role'        => $user['role'],
+            'username'         => $user['username'],
+            
+            // Tarik data profil, gunakan nilai default jika kolom di database kosong
+            'profile_username' => (!empty($user['username']) ? $user['username'] : ucfirst($username)),
+            'profile_bio'      => $user['bio'] ?? null,
+            'profile_avatar'   => $user['avatar'] ?? null,
+            'profile_theme'    => $user['theme'] ?? 'light',
         ]);
-
-        // Preserve profile settings if already in session
-        if (!session()->get('profile_username')) {
-            session()->set('profile_username', ucfirst($user['username']));
-        }
 
         return redirect()->to(base_url('dashboard'));
     }
