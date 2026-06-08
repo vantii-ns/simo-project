@@ -261,9 +261,6 @@ class Import2026 extends Controller
             ['dept' => 'PA', 'nama' => 'Dewan Pengawasan SPARK', 'waktu' => 'Selama kepengurusan', 'pj' => 'Yudis & Luthfi'],
             ['dept' => 'PA', 'nama' => 'Penjaringan minat bakat (Collab PMDB)', 'waktu' => 'Selama kepengurusan', 'pj' => 'Sufyan'],
             ['dept' => 'PA', 'nama' => 'SI TALK', 'waktu' => '1 x setiap 2 bulan (minggu ke-2 bulan ke-2)', 'pj' => 'Vina & Ismi'],
-            ['dept' => 'PA', 'nama' => 'Mini Bootcamp', 'waktu' => 'Saat PROKSI (manut acara e PROKSI)', 'pj' => 'Faizah & Irur'],
-            ['dept' => 'PA', 'nama' => 'Sharing Session', 'waktu' => '1 x per periode (19 April 2026)', 'pj' => 'Nadiya & Nazwa'],
-            ['dept' => 'PA', 'nama' => 'Workshop', 'waktu' => '1 x per periode (bulan Agustus beberapa hari setelah PBAK)', 'pj' => 'Yudis & Sufyan']
         ];
 
         // Truncate/clean old P26 proker and partisipan before re-seeding
@@ -274,9 +271,28 @@ class Import2026 extends Controller
         $addedProker = 0;
         $pi = 1;
 
-        // Initialize participant counter for fast in-memory ID generation
-        $lastP = $db->table('partisipan')->orderBy('ID_PARTISIPASI', 'DESC')->limit(1)->get()->getRowArray();
-        $pCount = $lastP ? ((int)substr($lastP['ID_PARTISIPASI'], 1)) + 1 : 1;
+        // Initialize participant counter – supports rolling letter prefix P→Q→R...
+        $lastP  = $db->table('partisipan')->orderBy('ID_PARTISIPASI', 'DESC')->limit(1)->get()->getRowArray();
+        // pCount = absolute sequential number (1-based). Letter & digits derived in makePid().
+        if ($lastP) {
+            $pid    = $lastP['ID_PARTISIPASI'];
+            $letter = $pid[0];                              // e.g. 'P', 'Q', ...
+            $num    = (int)substr($pid, 1);                 // e.g. 99999
+            $letterOrd  = ord($letter) - ord('P');          // 0 for P, 1 for Q, ...
+            $pCount = $letterOrd * 99999 + $num + 1;        // absolute counter
+        } else {
+            $pCount = 1;
+        }
+
+        // Helper: generate rolling ID – P00001..P99999, Q00001..Q99999, R...
+        $makePid = function() use (&$pCount) {
+            $maxPerLetter = 99999;
+            $letterIdx    = (int)floor(($pCount - 1) / $maxPerLetter);
+            $numPart      = (($pCount - 1) % $maxPerLetter) + 1;
+            $letter       = chr(ord('P') + $letterIdx);
+            $pCount++;
+            return $letter . str_pad($numPart, 5, '0', STR_PAD_LEFT);
+        };
 
         foreach ($prokerRaw as $pr) {
             $idProker = sprintf("PK%03d", $pi);
@@ -290,7 +306,6 @@ class Import2026 extends Controller
             // Set status based on tanggalSelesai vs '2026-06-03'
             $status = 'Belum Terlaksana';
             if ($tanggalSelesai < '2026-06-03') {
-                // 90% Terlaksana, 10% Tidak Terlaksana
                 $status = (($pi % 10) == 0) ? 'Tidak Terlaksana' : 'Terlaksana';
             }
             
@@ -307,78 +322,215 @@ class Import2026 extends Controller
             ]);
             $addedProker++;
 
-            // Seed participants / committees from the same department
             $deptMembers = $db->table('struktur_kepengurusan')
-                              ->select('struktur_kepengurusan.ID_ANGGOTA, anggota.NAMA_ANGGOTA')
+                              ->select('struktur_kepengurusan.ID_ANGGOTA, anggota.NAMA_ANGGOTA, struktur_kepengurusan.ID_JABATAN')
                               ->join('anggota', 'anggota.ID_ANGGOTA = struktur_kepengurusan.ID_ANGGOTA')
                               ->where('struktur_kepengurusan.ID_DEPARTEMEN', $pr['dept'])
                               ->where('struktur_kepengurusan.ID_PERIODE', $idPeriode)
                               ->get()->getResultArray();
 
-            $pjNames = [];
-            if (!empty($fullPj)) {
-                $parts = preg_split('/\s+(&|dan|,)\s+/', $fullPj);
-                foreach ($parts as $part) {
-                    $pjNames[] = trim($part);
-                }
-            }
+            $kominfoMembers = $db->table('struktur_kepengurusan')
+                                 ->select('struktur_kepengurusan.ID_ANGGOTA, anggota.NAMA_ANGGOTA, struktur_kepengurusan.ID_JABATAN')
+                                 ->join('anggota', 'anggota.ID_ANGGOTA = struktur_kepengurusan.ID_ANGGOTA')
+                                 ->where('struktur_kepengurusan.ID_DEPARTEMEN', 'KM')
+                                 ->where('struktur_kepengurusan.ID_PERIODE', $idPeriode)
+                                 ->get()->getResultArray();
+
+            // Anggota departemen lain (selain penyelenggara) untuk tambahan
+            $allOtherMembers = $db->table('struktur_kepengurusan')
+                                  ->select('struktur_kepengurusan.ID_ANGGOTA, anggota.NAMA_ANGGOTA, struktur_kepengurusan.ID_DEPARTEMEN, struktur_kepengurusan.ID_JABATAN')
+                                  ->join('anggota', 'anggota.ID_ANGGOTA = struktur_kepengurusan.ID_ANGGOTA')
+                                  ->where('struktur_kepengurusan.ID_PERIODE', $idPeriode)
+                                  ->whereNotIn('struktur_kepengurusan.ID_DEPARTEMEN', [$pr['dept']])
+                                  ->get()->getResultArray();
 
             $assignedMembers = [];
 
-            // 1. Add PJs
-            foreach ($pjNames as $pjName) {
-                $foundMember = null;
-                foreach ($deptMembers as $dm) {
-                    if (strcasecmp($dm['NAMA_ANGGOTA'], $pjName) === 0 || strpos(strtolower($dm['NAMA_ANGGOTA']), strtolower($pjName)) !== false) {
-                        $foundMember = $dm;
-                        break;
+            // insertPart menggunakan $makePid dari outer scope
+            $insertPart = function($idAnggota, $peran, $tugas) use ($db, $idProker, $makePid, &$assignedMembers) {
+                if (in_array($idAnggota, $assignedMembers)) return false;
+                $db->table('partisipan')->insert([
+                    'ID_ANGGOTA'        => $idAnggota,
+                    'ID_PROKER'         => $idProker,
+                    'ID_PARTISIPASI'    => $makePid(),
+                    'PERAN_PADA_PROKER' => $peran,
+                    'TUGAS'             => $tugas,
+                ]);
+                $assignedMembers[] = $idAnggota;
+                return true;
+            };
+
+            // Kocok dengan seed deterministik berdasar index proker
+            srand($pi * 7 + 31);
+            shuffle($deptMembers);
+            shuffle($kominfoMembers);
+            shuffle($allOtherMembers);
+
+            // ── 1. PENANGGUNG JAWAB ── Kadep departemen penyelenggara ──────────────
+            $pjInserted = false;
+            foreach ($deptMembers as $dm) {
+                if ($dm['ID_JABATAN'] === '08') {
+                    if ($insertPart($dm['ID_ANGGOTA'], 'Penanggung Jawab',
+                        'Bertanggung jawab penuh atas perencanaan, pelaksanaan, dan evaluasi program kerja.')) {
+                        $pjInserted = true; break;
                     }
                 }
-                
-                if (!$foundMember) {
-                    $allMatch = $db->table('anggota')->like('NAMA_ANGGOTA', $pjName)->get()->getRowArray();
-                    if ($allMatch) {
-                        $foundMember = ['ID_ANGGOTA' => $allMatch['ID_ANGGOTA'], 'NAMA_ANGGOTA' => $allMatch['NAMA_ANGGOTA']];
+            }
+            // Fallback: cari dari nama PJ field
+            if (!$pjInserted && !empty($fullPj)) {
+                foreach (preg_split('/\s+(&|dan|,)\s+/', $fullPj) as $pjName) {
+                    $pjName = trim($pjName);
+                    $found  = null;
+                    foreach ($deptMembers as $dm) {
+                        if (strcasecmp($dm['NAMA_ANGGOTA'], $pjName) === 0 ||
+                            stripos($dm['NAMA_ANGGOTA'], $pjName) !== false) {
+                            $found = $dm; break;
+                        }
                     }
-                }
-                
-                if ($foundMember && !in_array($foundMember['ID_ANGGOTA'], $assignedMembers)) {
-                    $db->table('partisipan')->insert([
-                        'ID_ANGGOTA'        => $foundMember['ID_ANGGOTA'],
-                        'ID_PROKER'         => $idProker,
-                        'ID_PARTISIPASI'    => 'P' . str_pad($pCount++, 3, '0', STR_PAD_LEFT),
-                        'PERAN_PADA_PROKER' => 'Penanggung Jawab',
-                        'TUGAS'             => 'Mengkoordinasikan dan bertanggung jawab penuh atas pelaksanaan program kerja.'
-                    ]);
-                    $assignedMembers[] = $foundMember['ID_ANGGOTA'];
+                    if (!$found) {
+                        $row = $db->table('anggota')->like('NAMA_ANGGOTA', $pjName)->get()->getRowArray();
+                        if ($row) $found = ['ID_ANGGOTA' => $row['ID_ANGGOTA'], 'NAMA_ANGGOTA' => $row['NAMA_ANGGOTA'], 'ID_JABATAN' => '09'];
+                    }
+                    if ($found) {
+                        $insertPart($found['ID_ANGGOTA'], 'Penanggung Jawab',
+                            'Bertanggung jawab penuh atas perencanaan, pelaksanaan, dan evaluasi program kerja.');
+                    }
                 }
             }
 
-            // 2. Add other committee roles (Ketua Pelaksana, Sekretaris, Bendahara, Divisi Acara, Divisi Logistik)
-            $roles = [
-                ['peran' => 'Ketua Pelaksana', 'tugas' => 'Memimpin dan mengarahkan jalannya kepanitiaan program kerja.'],
-                ['peran' => 'Sekretaris', 'tugas' => 'Mengurus administrasi, surat-menyurat, dan proposal.'],
-                ['peran' => 'Bendahara', 'tugas' => 'Mengelola keuangan, anggaran, dan laporan pertanggungjawaban.'],
-                ['peran' => 'Divisi Acara', 'tugas' => 'Menyusun konsep, rundown, dan memandu jalannya acara.'],
-                ['peran' => 'Divisi Logistik', 'tugas' => 'Menyiapkan perlengkapan, tempat, dan fasilitas pendukung.']
-            ];
+            // ── 2. KETUA PELAKSANA (dari dept) ────────────────────────────────────
+            foreach ($deptMembers as $dm) {
+                if ($insertPart($dm['ID_ANGGOTA'], 'Ketua Pelaksana',
+                    'Memimpin, mengarahkan, dan mengkoordinasikan seluruh kepanitiaan program kerja.')) break;
+            }
 
-            // Shuffle members list for variety
-            shuffle($deptMembers);
+            // ── 3. SEKRETARIS (dari dept) ──────────────────────────────────────────
+            foreach ($deptMembers as $dm) {
+                if ($insertPart($dm['ID_ANGGOTA'], 'Sekretaris',
+                    'Mengurus administrasi, notulensi rapat, surat-menyurat, dan proposal kegiatan.')) break;
+            }
 
-            foreach ($roles as $role) {
-                foreach ($deptMembers as $dm) {
-                    if (!in_array($dm['ID_ANGGOTA'], $assignedMembers)) {
-                        $db->table('partisipan')->insert([
-                            'ID_ANGGOTA'        => $dm['ID_ANGGOTA'],
-                            'ID_PROKER'         => $idProker,
-                            'ID_PARTISIPASI'    => 'P' . str_pad($pCount++, 3, '0', STR_PAD_LEFT),
-                            'PERAN_PADA_PROKER' => $role['peran'],
-                            'TUGAS'             => $role['tugas']
-                        ]);
-                        $assignedMembers[] = $dm['ID_ANGGOTA'];
-                        break; // Move to the next role
+            // ── 4. BENDAHARA (dari dept) ───────────────────────────────────────────
+            foreach ($deptMembers as $dm) {
+                if ($insertPart($dm['ID_ANGGOTA'], 'Bendahara',
+                    'Mengelola anggaran, mencatat pengeluaran, dan menyusun laporan keuangan kegiatan.')) break;
+            }
+
+            // ── 5. KOORDINATOR ACARA (dari dept) ──────────────────────────────────
+            foreach ($deptMembers as $dm) {
+                if ($insertPart($dm['ID_ANGGOTA'], 'Koordinator Acara',
+                    'Menyusun konsep, rundown acara, dan memastikan kelancaran jalannya kegiatan.')) break;
+            }
+
+            // ── 6. KOORDINATOR LOGISTIK (dari dept) ───────────────────────────────
+            foreach ($deptMembers as $dm) {
+                if ($insertPart($dm['ID_ANGGOTA'], 'Koordinator Logistik',
+                    'Mengatur kebutuhan perlengkapan, tempat, dan fasilitas pendukung kegiatan.')) break;
+            }
+
+            // ── 7. DIVISI PDD ── SELALU DARI KOMINFO ──────────────────────────────
+            $kominfoOffset  = ($pi * 3) % max(1, count($kominfoMembers));
+            $kominfoRotated = $kominfoMembers;
+            for ($r = 0; $r < $kominfoOffset; $r++) {
+                $kominfoRotated[] = array_shift($kominfoRotated);
+            }
+            // Kadep KOMINFO (jabatan 08) → Koordinator PDD
+            $koorPddDone = false;
+            foreach ($kominfoRotated as $km) {
+                if ($km['ID_JABATAN'] === '08') {
+                    if ($insertPart($km['ID_ANGGOTA'], 'Koordinator PDD',
+                        'Mengkoordinasikan tim publikasi, dokumentasi, dan dekorasi acara.')) {
+                        $koorPddDone = true; break;
                     }
+                }
+            }
+            if (!$koorPddDone) {
+                foreach ($kominfoRotated as $km) {
+                    if ($insertPart($km['ID_ANGGOTA'], 'Koordinator PDD',
+                        'Mengkoordinasikan tim publikasi, dokumentasi, dan dekorasi acara.')) break;
+                }
+            }
+            // 2 Anggota PDD dari KOMINFO
+            $pddCount = 0;
+            foreach ($kominfoRotated as $km) {
+                if ($pddCount >= 2) break;
+                $pddTugas = ($pddCount === 0)
+                    ? 'Mendokumentasikan kegiatan melalui foto/video dan mengelola konten media sosial.'
+                    : 'Membuat desain grafis, materi visual, dan publikasi kegiatan di berbagai platform.';
+                if ($insertPart($km['ID_ANGGOTA'], 'Anggota PDD', $pddTugas)) $pddCount++;
+            }
+
+            // ── 8. Sisa anggota dept → panitia inti ───────────────────────────────
+            $deptSideRoles = [
+                ['Koordinator Konsumsi',   'Mengatur kebutuhan konsumsi, distribusi makanan dan minuman untuk peserta.'],
+                ['Anggota Divisi Acara',   'Membantu menyiapkan dan melaksanakan seluruh rangkaian acara kegiatan.'],
+                ['Anggota Divisi Logistik','Membantu pengadaan, penataan, dan pengembalian perlengkapan kegiatan.'],
+                ['Anggota Divisi Konsumsi','Membantu pengelolaan dan distribusi konsumsi kepada peserta kegiatan.'],
+                ['Anggota Panitia',        'Membantu kelancaran pelaksanaan program kerja secara menyeluruh.'],
+            ];
+            foreach ($deptSideRoles as $sRole) {
+                foreach ($deptMembers as $dm) {
+                    if ($insertPart($dm['ID_ANGGOTA'], $sRole[0], $sRole[1])) break;
+                }
+            }
+
+            // ── 9. Anggota dept lain → minimal 10 panitia (round-robin per dept) ──
+            $otherOffset  = ($pi * 13) % max(1, count($allOtherMembers));
+            $otherRotated = $allOtherMembers;
+            for ($r = 0; $r < $otherOffset; $r++) {
+                $otherRotated[] = array_shift($otherRotated);
+            }
+            $otherByDept = [];
+            foreach ($otherRotated as $am) {
+                if ($am['ID_DEPARTEMEN'] === 'KM') continue; // KOMINFO sudah di PDD
+                $otherByDept[$am['ID_DEPARTEMEN']][] = $am;
+            }
+            $deptKeys      = array_keys($otherByDept);
+            $extraRoles    = ['Anggota Divisi Humas','Anggota Panitia','Anggota Divisi Acara','Anggota Panitia','Anggota Divisi Logistik','Anggota Panitia'];
+            $extraTugas    = [
+                'Membantu koordinasi tamu undangan, publikasi, dan hubungan eksternal kegiatan.',
+                'Membantu pelaksanaan dan koordinasi kegiatan antar departemen.',
+                'Membantu menyiapkan dan melaksanakan rangkaian acara kegiatan.',
+                'Mendukung koordinasi lapangan dan kesiapan sarana prasarana kegiatan.',
+                'Membantu pengadaan dan penataan perlengkapan serta kebutuhan teknis kegiatan.',
+                'Membantu seluruh keperluan teknis dan non-teknis selama kegiatan berlangsung.',
+            ];
+            $deptIdx        = 0;
+            $memberPointers = array_fill_keys($deptKeys, 0);
+            $extraIdx       = 0;
+            while (count($assignedMembers) < 10 && !empty($deptKeys)) {
+                $dk = $deptKeys[$deptIdx % count($deptKeys)];
+                $mp = $memberPointers[$dk];
+                if ($mp < count($otherByDept[$dk])) {
+                    $am    = $otherByDept[$dk][$mp];
+                    $memberPointers[$dk]++;
+                    $role  = $extraRoles[$extraIdx % count($extraRoles)];
+                    $tugas = $extraTugas[$extraIdx % count($extraTugas)];
+                    if ($insertPart($am['ID_ANGGOTA'], $role, $tugas)) $extraIdx++;
+                }
+                $deptIdx++;
+                $allExhausted = true;
+                foreach ($deptKeys as $dk2) {
+                    if ($memberPointers[$dk2] < count($otherByDept[$dk2])) { $allExhausted = false; break; }
+                }
+                if ($allExhausted) break;
+            }
+
+            // ── 10. Fallback KOMINFO sisa jika masih < 10 ─────────────────────────
+            if (count($assignedMembers) < 10) {
+                foreach ($kominfoRotated as $km) {
+                    if (count($assignedMembers) >= 10) break;
+                    $insertPart($km['ID_ANGGOTA'], 'Anggota PDD',
+                        'Membantu publikasi dan dokumentasi kegiatan dari departemen KOMINFO.');
+                }
+            }
+
+            // ── 11. Fallback akhir: seluruh sisa anggota ──────────────────────────
+            if (count($assignedMembers) < 10) {
+                foreach ($otherRotated as $am) {
+                    if (count($assignedMembers) >= 10) break;
+                    $insertPart($am['ID_ANGGOTA'], 'Anggota Panitia',
+                        'Membantu pelaksanaan dan koordinasi kegiatan antar departemen.');
                 }
             }
 
@@ -391,6 +543,7 @@ class Import2026 extends Controller
                     <li>Anggota Baru Ditambahkan: <strong>{$addedAnggota}</strong> dari 72 total.</li>
                     <li>Struktur Kepengurusan: Telah di-generate untuk semua 72 anggota.</li>
                     <li>Program Kerja Baru: <strong>{$addedProker}</strong> ditambahkan.</li>
+                    <li>Partisipan: Minimal <strong>10 panitia per proker</strong>. Dept penyelenggara = koor &amp; panitia inti. PDD selalu dari KOMINFO. ID rolling P&rarr;Q&rarr;R...</li>
                 </ul>
                 <a href='".base_url('master/anggota')."'>Kembali ke Daftar Anggota</a>";
     }

@@ -174,7 +174,7 @@ $formatTanggalIndo = function($dateStr) {
                         <div class="timeline-item">
                             <span class="timeline-marker <?= $color ?>"></span>
                             <div class="timeline-content">
-                                <p style="margin: 0; font-weight: 600; color: #1e293b;"><?= esc($p['NAMA_PROKER']) ?></p>
+                                <p class="timeline-title" style="margin: 0; font-weight: 600;"><?= esc($p['NAMA_PROKER']) ?></p>
                                 <p style="font-size: 0.78rem; margin: 2px 0; color: var(--text-muted);">
                                     Departemen: <strong><?= esc($p['NAMA_DEPARTEMEN']) ?></strong> | PJ: <strong><?= esc($p['PENANGGUNG_JAWAB'] ?: '-') ?></strong>
                                 </p>

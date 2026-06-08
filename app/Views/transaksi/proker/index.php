@@ -119,7 +119,8 @@ $formatTanggalIndoFull = function($dateStr) {
     </div>
     <?php endif; ?>
 
-    <!-- Edit Form (Modal Overlay style) -->
+    <!-- Edit Form (Modal Overlay style) - Admin Only -->
+    <?php if (session()->get('user_role') === 'admin'): ?>
     <div id="editModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
         <div class="glass-panel" style="width: 90%; max-width: 600px; padding: 25px; border-radius: 16px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border-light); padding-bottom: 12px;">
@@ -177,6 +178,7 @@ $formatTanggalIndoFull = function($dateStr) {
             </form>
         </div>
     </div>
+    <?php endif; ?>
 
     <div class="table-responsive">
         <table>
@@ -189,7 +191,7 @@ $formatTanggalIndoFull = function($dateStr) {
                     <th>Penanggung Jawab</th>
                     <th style="text-align: center;">Terlaksana</th>
                     <th style="text-align: center;">Tidak Terlaksana</th>
-                    <th>Aksi</th>
+                    <th><?= session()->get('user_role') === 'admin' ? 'Aksi' : 'Detail' ?></th>
                 </tr>
             </thead>
             <tbody>
@@ -221,9 +223,11 @@ $formatTanggalIndoFull = function($dateStr) {
                         </td>
                         <td>
                             <div style="display: flex; gap: 6px;">
-                                <a href="<?= base_url('transaksi/proker/detail/' . $p['ID_PROKER']) ?>" class="btn btn-sm btn-success" title="Kelola Kepanitiaan/Partisipan"><i class="fa-solid fa-users"></i> Plotting</a>
+                                <a href="<?= base_url('transaksi/proker/detail/' . $p['ID_PROKER']) ?>" class="btn btn-sm btn-success" title="Lihat Detail / Kepanitiaan"><i class="fa-solid fa-users"></i> Plotting</a>
+                                <?php if (session()->get('user_role') === 'admin'): ?>
                                 <button type="button" class="btn btn-sm btn-primary" onclick="openEditModal(<?= htmlspecialchars(json_encode($p)) ?>)" title="Ubah"><i class="fa-solid fa-pen-to-square"></i></button>
                                 <a href="<?= base_url('transaksi/proker/delete/' . $p['ID_PROKER']) ?>" class="btn btn-sm btn-danger" onclick="return confirm('Apakah Anda yakin ingin menghapus data ini?');" title="Hapus"><i class="fa-solid fa-trash"></i></a>
+                                <?php endif; ?>
                             </div>
                         </td>
                     </tr>

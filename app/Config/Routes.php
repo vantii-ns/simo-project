@@ -84,6 +84,11 @@ $routes->group('transaksi', ['namespace' => 'App\Controllers\Transaksi'], functi
 });
 
 // ══════════════════════════════════════════════════════════
+// PENCARIAN GLOBAL — auth
+// ══════════════════════════════════════════════════════════
+$routes->get('search', 'Search::index', ['filter' => 'auth']);
+
+// ══════════════════════════════════════════════════════════
 // PENGATURAN — auth
 // ══════════════════════════════════════════════════════════
 $routes->get('pengaturan',              'Pengaturan::index',       ['filter' => 'auth']);
